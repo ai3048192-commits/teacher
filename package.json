@@ -1,0 +1,38 @@
+{
+  "name": "dashboatd",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@100mslive/hms-video-store": "^0.15.0",
+    "@100mslive/react-sdk": "^0.13.0",
+    "@supabase/supabase-js": "^2.112.3",
+    "framer-motion": "^12.43.0",
+    "lucide-react": "^1.28.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2"
+  },
+  "devDependencies": {
+    "@types/jszip": "^3.4.0",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "install": "^0.13.0",
+    "jszip": "^3.10.1",
+    "oxlint": "^1.75.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.0"
+  },
+  "overrides": {
+    "react": "$react",
+    "react-dom": "$react-dom"
+  }
+}
