@@ -1,18 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 
-export const supabase = createClient(URL, KEY, {
-  auth: {
-    storage: {
-      getItem: (key) => {
-        const match = document.cookie.match(new RegExp(`(^| )${key}=([^;]+)`));
-        return match ? decodeURIComponent(match[2]) : null;
-      },
-      setItem: (key, value) => {
-        document.cookie = `${key}=${encodeURIComponent(value)}; domain=.zed.com; path=/; max-age=604800; secure; samesite=lax`;
-      },
-      removeItem: (key) => {
-        document.cookie = `${key}=; domain=.zed.com; path=/; max-age=0`;
-      },
-    },
-  },
-});
+// القيم بتتقرا من متغيرات البيئة، مش مكتوبة في الكود.
+// لازم تضيفهم في Vercel > Settings > Environment Variables،
+// وفي ملف .env محلياً.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  // رسالة واضحة بدل "KEY is not defined" الغامضة
+  throw new Error(
+    "متغيرات Supabase ناقصة. أضف VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY في إعدادات المشروع."
+  );
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
