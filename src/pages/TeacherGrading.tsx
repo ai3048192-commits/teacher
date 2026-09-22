@@ -14,6 +14,7 @@ import {
   XCircle,
   Eye,
   Sparkles,
+  ArrowRight
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -21,6 +22,11 @@ export default function StudentsSubmissionsPage() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // حالة لاختيار اختبار معين لعرض تفاصيل طلابه
+  const [selectedQuiz, setSelectedQuiz] = useState<any | null>(null);
+  
+  // حالة لعرض تفاصيل إجابات طالب معين داخل الاختبار
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -53,7 +59,7 @@ export default function StudentsSubmissionsPage() {
       if (error) throw error;
 
       if (data) {
-        setSubmissions(data); // عرض كل المحاولات والتسليمات بدون استثناء
+        setSubmissions(data);
       }
     } catch (error: any) {
       console.error("خطأ في جلب درجات الطلاب:", error.message);
@@ -62,9 +68,28 @@ export default function StudentsSubmissionsPage() {
     }
   };
 
-  const filteredSubmissions = submissions.filter((item) =>
-    item.student_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.course_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  // تجميع التسليمات حسب الاختبار (باستخدام course_name أو quiz_id كمعرف فريد)
+  const groupedQuizzes = submissions.reduce((acc: any, item: any) => {
+    const key = `${item.course_name || 'كورس غير محدد'} - ${item.quiz_id || 'عام'}`;
+    if (!acc[key]) {
+      acc[key] = {
+        quizKey: key,
+        course_name: item.course_name || 'كورس غير محدد',
+        specialty: item.specialty || 'عام',
+        quiz_id: item.quiz_id || 'عام',
+        submissions: []
+      };
+    }
+    acc[key].submissions.push(item);
+    return acc;
+  }, {});
+
+  const quizzesList = Object.values(groupedQuizzes);
+
+  // تصفية الكروت الرئيسية حسب البحث
+  const filteredQuizzes = quizzesList.filter((quiz: any) =>
+    quiz.course_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    quiz.specialty?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const toggleExpand = (id: number) => {
@@ -83,10 +108,10 @@ export default function StudentsSubmissionsPage() {
             <span>لوحة تقييم الطلاب الذكية - منصة Z E D</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            سجل اختبارات ومحاولات الطلاب بالكامل
+            سجل اختبارات ومحاولات الطلاب
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-            متابعة دقيقة لكل محاولات الاختبارات السابقة والجديدة للطلاب، مع استعراض التفاصيل والإجابات الكاملة.
+            استعرض الاختبارات المجمعة في بطاقات رئيسية، وانقر على "تفاصيل الاختبار" لمتابعة درجات وإجابات الطلاب لكل اختبار على حدة.
           </p>
         </div>
       </div>
@@ -97,7 +122,7 @@ export default function StudentsSubmissionsPage() {
           <Search size={16} className="absolute right-3.5 top-3.5 text-slate-400" />
           <input
             type="text"
-            placeholder="بحث باسم الطالب أو الكورس..."
+            placeholder="بحث باسم الكورس أو التخصص..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all"
@@ -106,7 +131,7 @@ export default function StudentsSubmissionsPage() {
         
         <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
           <div className="text-xs font-medium text-slate-600 bg-slate-100/80 px-3 py-2 rounded-xl border border-slate-200/60">
-            إجمالي المحاولات: <span className="text-indigo-600 font-bold">{filteredSubmissions.length}</span> محاولة
+            إجمالي الاختبارات: <span className="text-indigo-600 font-bold">{filteredQuizzes.length}</span> اختبار
           </div>
 
           <button
@@ -119,170 +144,179 @@ export default function StudentsSubmissionsPage() {
         </div>
       </div>
 
-      {/* المحتوى أو التحميل */}
+      {/* محتوى الصفحة: إما عرض قائمة الاختبارات الرئيسية أو تفاصيل اختبار محدد */}
       {loading ? (
         <div className="py-24 text-center space-y-3">
           <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs font-medium text-slate-500">جاري جلب جميع سجلات اختبارات الطلاب...</p>
+          <p className="text-xs font-medium text-slate-500">جاري جلب سجلات الاختبارات...</p>
         </div>
-      ) : filteredSubmissions.length === 0 ? (
-        <div className="py-16 text-center space-y-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
-          <AlertCircle size={32} className="text-indigo-500 mx-auto" />
-          <p className="text-xs sm:text-sm font-semibold text-slate-600">لا توجد تسليمات مطابقة لبحثك حالياً.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredSubmissions.map((item) => {
-            const isExpanded = expandedSubmissionId === item.id;
-            const mcqAnswers = item.student_answers?.mcq_answers || {};
-            const essayAnswers = item.student_answers?.essay_answers || {};
-            const uploadedFiles = item.student_answers?.uploaded_files || {};
-            const isFailed = item.status === 'راسب';
-            const maxScoreNum = Number(item.max_score) || 100;
+      ) : selectedQuiz ? (
+        /* عرض تفاصيل الطلاب داخل الاختبار المحدد */
+        <div className="space-y-6">
+          <div className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="space-y-1">
+              <span className="text-xs text-indigo-600 font-bold">{selectedQuiz.specialty}</span>
+              <h2 className="text-lg font-black text-slate-900">تفاصيل اختبار: {selectedQuiz.course_name}</h2>
+              <span className="text-xs text-slate-400">معرف الاختبار (Quiz ID: {selectedQuiz.quiz_id}) - عدد المتقدمين: {selectedQuiz.submissions.length} طالب</span>
+            </div>
+            <button
+              onClick={() => setSelectedQuiz(null)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <ArrowRight size={14} />
+              <span>العودة لكل الاختبارات</span>
+            </button>
+          </div>
 
-            return (
-              <div
-                key={item.id}
-                className="bg-white border-2 border-slate-200/70 rounded-3xl p-5 sm:p-6 shadow-sm hover:shadow-lg hover:border-indigo-500/60 transition-all duration-300 flex flex-col justify-between space-y-5"
-              >
-                <div className="space-y-4">
-                  
-                  {/* الهيدر الخاص بالكرت */}
-                  <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-50 to-blue-50 text-indigo-600 flex items-center justify-center font-black text-sm shrink-0 border border-indigo-100 shadow-xs">
-                        <Users size={22} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {selectedQuiz.submissions.map((item: any) => {
+              const isExpanded = expandedSubmissionId === item.id;
+              const mcqAnswers = item.student_answers?.mcq_answers || {};
+              const essayAnswers = item.student_answers?.essay_answers || {};
+              const uploadedFiles = item.student_answers?.uploaded_files || {};
+              const isFailed = item.status === 'راسب';
+              const maxScoreNum = Number(item.max_score) || 100;
+
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white border-2 border-slate-200/70 rounded-3xl p-5 shadow-sm space-y-4"
+                >
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0">
+                        <Users size={18} />
                       </div>
-                      <div className="space-y-1">
-                        <h3 className="text-base font-black text-slate-900 tracking-tight">{item.student_name}</h3>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${isFailed ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
-                            {isFailed ? <XCircle size={11} /> : <CheckCircle2 size={11} />}
-                            {item.status || "ناجح"}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-medium">(محاولة رقم: {item.id})</span>
-                        </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900">{item.student_name}</h4>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-0.5 ${isFailed ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          {isFailed ? <XCircle size={10} /> : <CheckCircle2 size={10} />}
+                          {item.status || "ناجح"}
+                        </span>
                       </div>
                     </div>
-                    
-                    {/* شارة الدرجة النهائية */}
-                    <div className="text-left bg-gradient-to-br from-indigo-900 to-slate-900 text-white px-3.5 py-2 rounded-2xl shadow-sm shrink-0 border border-slate-800">
-                      <span className="text-[9px] block text-indigo-300 font-semibold uppercase tracking-wider">الدرجة الكلية</span>
-                      <div className="flex items-baseline gap-1">
-                        <strong className="text-base font-black text-white">{item.score}</strong>
-                        <span className="text-[10px] text-slate-400">/ {maxScoreNum}</span>
-                      </div>
+
+                    <div className="text-left bg-slate-900 text-white px-3 py-1.5 rounded-xl shadow-xs">
+                      <span className="text-[9px] block text-indigo-300">الدرجة</span>
+                      <strong className="text-sm font-black">{item.score} / {maxScoreNum}</strong>
                     </div>
                   </div>
 
-                  {/* تفاصيل الكورس والتخصص */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/60 flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                        <BookOpen size={14} />
-                      </div>
-                      <div className="truncate">
-                        <span className="text-[10px] text-slate-400 block font-medium">الكورس / الاختبار (ID: {item.quiz_id})</span>
-                        <span className="font-bold text-slate-800 truncate block">{item.course_name}</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/60 flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                        <Layers size={14} />
-                      </div>
-                      <div className="truncate">
-                        <span className="text-[10px] text-slate-400 block font-medium">التخصص</span>
-                        <span className="font-bold text-indigo-700 truncate block">{item.specialty}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* قسم استعراض إجابات الطالب القابلة للطي */}
+                  {/* قسم استعراض إجابات الطالب */}
                   {item.student_answers && (
-                    <div className="space-y-2 pt-1">
+                    <div className="space-y-2">
                       <button
                         onClick={() => toggleExpand(item.id)}
-                        className="w-full flex items-center justify-between p-3 bg-slate-100/80 hover:bg-slate-100 text-slate-700 rounded-2xl text-xs font-bold border border-slate-200/80 transition-all cursor-pointer"
+                        className="w-full flex items-center justify-between p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
                       >
-                        <span className="flex items-center gap-2">
-                          <Eye size={15} className="text-indigo-600" />
-                          <span>عرض تفاصيل الإجابات والملفات المرفقة</span>
+                        <span className="flex items-center gap-1.5">
+                          <Eye size={14} className="text-indigo-600" />
+                          <span>عرض تفاصيل الإجابات والملفات</span>
                         </span>
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
 
                       {isExpanded && (
-                        <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5 text-xs animate-fadeIn">
+                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
                           {Object.keys(mcqAnswers).length > 0 && (
-                            <div className="space-y-2">
-                              <span className="font-extrabold text-blue-700 block border-b border-blue-100 pb-1">أسئلة الاختيار من متعدد:</span>
+                            <div className="space-y-1.5">
+                              <span className="font-bold text-blue-700 block border-b pb-1">أسئلة الاختيار من متعدد:</span>
                               {Object.entries(mcqAnswers).map(([qIndex, ans], i) => (
-                                <div key={i} className="p-2.5 bg-white rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
-                                  <span className="text-slate-500 font-semibold">السؤال ({Number(qIndex) + 1})</span>
-                                  <span className="font-black text-slate-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-                                    {String(ans)}
-                                  </span>
+                                <div key={i} className="p-2 bg-white rounded-lg border flex items-center justify-between">
+                                  <span className="text-slate-500">السؤال ({Number(qIndex) + 1})</span>
+                                  <span className="font-bold text-slate-900 bg-blue-50 px-2 py-0.5 rounded">{String(ans)}</span>
                                 </div>
                               ))}
                             </div>
                           )}
 
                           {Object.keys(essayAnswers).length > 0 && (
-                            <div className="space-y-2 pt-1">
-                              <span className="font-extrabold text-indigo-700 block border-b border-indigo-100 pb-1">الأسئلة المقالية:</span>
+                            <div className="space-y-1.5 pt-1">
+                              <span className="font-bold text-indigo-700 block border-b pb-1">الأسئلة المقالية:</span>
                               {Object.entries(essayAnswers).map(([qIndex, ans], i) => (
-                                <div key={i} className="p-3 bg-white rounded-xl border border-slate-200/80 space-y-1.5 shadow-2xs">
-                                  <span className="text-slate-500 font-semibold block">إجابة السؤال المقالي ({Number(qIndex) + 1})</span>
-                                  <p className="font-medium text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-                                    {String(ans) || "لم يكتب إجابة"}
-                                  </p>
+                                <div key={i} className="p-2 bg-white rounded-lg border space-y-1">
+                                  <span className="text-slate-500 block">السؤال المقالي ({Number(qIndex) + 1})</span>
+                                  <p className="font-medium text-slate-800 bg-slate-50 p-2 rounded">{String(ans) || "لم يكتب إجابة"}</p>
                                 </div>
                               ))}
                             </div>
                           )}
 
                           {Object.keys(uploadedFiles).length > 0 && (
-                            <div className="space-y-2 pt-1">
-                              <span className="font-extrabold text-emerald-700 block border-b border-emerald-100 pb-1">الملفات المرفقة:</span>
+                            <div className="space-y-1.5 pt-1">
+                              <span className="font-bold text-emerald-700 block border-b pb-1">الملفات المرفقة:</span>
                               {Object.entries(uploadedFiles).map(([qIndex, fileObj]: [string, any], i) => (
-                                <div key={i} className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/80 flex items-center justify-between">
-                                  <span className="text-slate-600 font-semibold">ملف السؤال ({Number(qIndex) + 1})</span>
-                                  <a
-                                    href={fileObj.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-emerald-700 font-bold underline flex items-center gap-1.5 truncate max-w-[180px] hover:text-emerald-900"
-                                  >
-                                    <FileText size={14} />
-                                    <span className="truncate">{fileObj.name}</span>
+                                <div key={i} className="p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between">
+                                  <span>ملف السؤال ({Number(qIndex) + 1})</span>
+                                  <a href={fileObj.url} target="_blank" rel="noopener noreferrer" className="text-emerald-700 font-bold underline flex items-center gap-1">
+                                    <FileText size={12} />
+                                    <span>{fileObj.name}</span>
                                   </a>
                                 </div>
                               ))}
                             </div>
-                          )}
-
-                          {Object.keys(mcqAnswers).length === 0 && Object.keys(essayAnswers).length === 0 && Object.keys(uploadedFiles).length === 0 && (
-                            <p className="text-slate-500 text-center py-2">لا توجد تفاصيل إجابات مسجلة لهذا التسليم.</p>
                           )}
                         </div>
                       )}
                     </div>
                   )}
 
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t">
+                    <span className="flex items-center gap-1">
+                      <Clock size={12} className="text-amber-500" /> وقت التسليم:
+                    </span>
+                    <span className="font-semibold text-slate-700">{item.submission_time}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : filteredQuizzes.length === 0 ? (
+        <div className="py-16 text-center space-y-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
+          <AlertCircle size={32} className="text-indigo-500 mx-auto" />
+          <p className="text-xs sm:text-sm font-semibold text-slate-600">لا توجد اختبارات مطابقة لبحثك حالياً.</p>
+        </div>
+      ) : (
+        /* عرض قائمة الكروت الرئيسية للاختبارات */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredQuizzes.map((quiz: any, idx: number) => (
+            <div
+              key={idx}
+              className="bg-white border-2 border-slate-200/70 rounded-3xl p-6 shadow-sm hover:shadow-lg hover:border-indigo-500 transition-all duration-300 flex flex-col justify-between space-y-5"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black border border-indigo-100">
+                    <BookOpen size={22} />
+                  </div>
+                  <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+                    {quiz.specialty}
+                  </span>
                 </div>
 
-                {/* وقت التسليم */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-semibold">
-                  <span className="flex items-center gap-1.5 text-slate-400">
-                    <Clock size={13} className="text-amber-500" />
-                    وقت التسليم:
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">{quiz.course_name}</h3>
+                  <p className="text-xs text-slate-400 mt-1">معرف الاختبار: {quiz.quiz_id}</p>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/60 flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">الطلاب المتقدمين:</span>
+                  <span className="font-black text-indigo-600 bg-white px-2.5 py-1 rounded-xl border border-slate-200">
+                    {quiz.submissions.length} طالب
                   </span>
-                  <span className="text-slate-700 font-bold bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">{item.submission_time}</span>
                 </div>
               </div>
-            );
-          })}
+
+              <button
+                onClick={() => setSelectedQuiz(quiz)}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95"
+              >
+                <Eye size={16} />
+                <span>تفاصيل الاختبار والدرجات</span>
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
