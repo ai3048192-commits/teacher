@@ -3,9 +3,7 @@ import {
   Users,
   Search,
   Calendar,
-  Clock,
   CheckCircle2,
-  XCircle,
   ChevronLeft,
   ArrowRight,
   BookOpen,
@@ -30,19 +28,18 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
     fetchAttendanceData();
   }, [userId]);
 
-  // جلب البيانات وتجميعها بحيث يظهر الطالب مرة واحدة (حسب أول محاولة/تسليم)
+  // جلب البيانات وتجميعها بحيث يظهر الطالب مرة واحدة بناءً على أول محاولة (حضور ثابت)
   const fetchAttendanceData = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from("student_submissions")
         .select("*")
-        .order("created_at", { ascending: true }); // ترتيب تصاعدي لنصل للأولى أولاً
+        .order("created_at", { ascending: true }); // ترتيب تصاعدي لنصل للمحاولة الأولى (الأقدم) أولاً
 
       if (error) throw error;
 
       if (data) {
-        // تجميع التسليمات بحيث يكون لكل طالب سجل واحد فريد لكل (كورس + تخصص + طالب)
         const studentMap = new Map();
 
         data.forEach((item) => {
@@ -50,24 +47,23 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
           const specialty = item.specialty || "عام";
           const courseName = item.course_name || "كورس عام";
           
-          // مفتاح فريد للطالب داخل الكورس والتخصص
           const uniqueKey = `${specialty}_${courseName}_${studentId}`;
 
           if (!studentMap.has(uniqueKey)) {
-            // هذه هي المحاولـة الأولى (الأقدم)
+            // تخزين بيانات المحاولة الأولى وثبات الحضور تلقائياً
             studentMap.set(uniqueKey, {
-              id: item.id, // معرف السجل الأول
-              allIds: [item.id], // لحفظ جميع معرفات محاولاته إذا أردنا حذفها لاحقاً
+              id: item.id,
+              allIds: [item.id],
               student_id: studentId,
               student_name: item.student_name || "طالب بدون اسم",
               specialty: specialty,
               course_name: courseName,
-              attendance_status: item.attendance_status || "حاضر",
+              attendance_status: "حاضر", // تثبيت الحالة دائماً كـ "حاضر" من أول محاولة
               first_attendance_time: item.submission_time || item.created_at || "-",
               attempts_count: 1,
             });
           } else {
-            // إذا كان الطالب موجوداً مسبقاً، نزيد عدد محاولاته فقط ونحافظ على وقت المحاولة الأولى
+            // زيادة عدد المحاولات في الخلفية دون التأثير على حالة الحضور أو التاريخ الأول
             const existing = studentMap.get(uniqueKey);
             existing.attempts_count += 1;
             existing.allIds.push(item.id);
@@ -83,19 +79,10 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
     }
   };
 
-  const handleToggleAttendance = async (id: number, currentStatus: string) => {
-    const newStatus = currentStatus === "حاضر" ? "غائب" : "حاضر";
-    
-    setAttendanceData(prev =>
-      prev.map(item => item.id === id ? { ...item, attendance_status: newStatus } : item)
-    );
-  };
-
   const handleDeleteStudent = async (studentItem: any) => {
     if (!window.confirm("هل أنت متأكد من حذف هذا الطالب وجميع محاولاته المسجلة في هذا الكورس؟")) return;
 
     try {
-      // حذف كل السجلات الخاصة بهذا الطالب في هذا الكورس بناءً على المعرفات المخزنة
       const { error } = await supabase
         .from("student_submissions")
         .delete()
@@ -136,13 +123,13 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
         <div className="relative z-10 space-y-2">
           <span className="px-3.5 py-1 bg-white/25 backdrop-blur-md text-white text-xs font-bold rounded-full inline-flex items-center gap-1.5 border border-white/30">
             <FolderTree size={13} />
-            سجل الحضور بناءً على المحاولة الأولى - منصة Z E D
+            سجل الحضور الثابت من المحاولة الأولى - منصة Z E D
           </span>
           <h1 className="text-2xl sm:text-3xl font-black tracking-wide">
-            إدارة الحضور والغياب (المحاولة الأولى)
+            إدارة الحضور التلقائي والثابت
           </h1>
           <p className="text-xs sm:text-sm text-teal-100 max-w-xl leading-relaxed">
-            يتم رصد دخول الطالب واحتساب حضوره بناءً على أول محاولة أو تسليم قام به في الامتحان أو الواجب.
+            يتم تسجيل حضور الطالب وثبات حالته تلقائياً بمجرد دخوله وحله للامتحان من أول محاولة دون تغييرها لاحقاً.
           </p>
         </div>
       </div>
@@ -241,7 +228,7 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
                     <h4 className="text-sm font-black text-slate-900 group-hover:text-teal-700 transition-colors">
                       {course}
                     </h4>
-                    <p className="text-xs text-slate-500 mt-1">انقر لمتابعة حضور الطلاب بناءً على أول محاولة</p>
+                    <p className="text-xs text-slate-500 mt-1">انقر لمتابعة حضور الطلاب الثابت</p>
                   </div>
                 </div>
                 <div className="pt-2 flex items-center justify-between text-xs font-bold text-teal-600 border-t border-slate-100">
@@ -254,15 +241,15 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
         </div>
       )}
 
-      {/* عرض قائمة الطلاب الفريدة (مرة واحدة لكل طالب) */}
+      {/* عرض قائمة الطلاب */}
       {selectedSpecialty && selectedCourse && (
         <div className="bg-white border-2 border-teal-100 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-teal-100">
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                طلاب كورس {selectedCourse} ({filteredStudents.length} طالباً فريداً)
+                طلاب كورس {selectedCourse} ({filteredStudents.length} طالباً)
               </h3>
-              <span className="text-xs text-slate-500">تم رصد الحضور من تاريخ الدخول والمحاولة الأولى</span>
+              <span className="text-xs text-slate-500">تم رصد وتثبيت حضور الطالب من أول محاولة دخول</span>
             </div>
 
             <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -312,17 +299,11 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
 
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-[11px] text-slate-500 font-semibold">حالة الحضور:</span>
-                    <button
-                      onClick={() => handleToggleAttendance(student.id, student.attendance_status)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs ${
-                        student.attendance_status === "حاضر"
-                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                          : "bg-rose-600 hover:bg-rose-700 text-white"
-                      }`}
-                    >
-                      {student.attendance_status === "حاضر" ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                      <span>{student.attendance_status}</span>
-                    </button>
+                    {/* زر ثابت يعرض حالة الحضور دون إمكانية التغيير */}
+                    <div className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-600 text-white shadow-2xs">
+                      <CheckCircle2 size={13} />
+                      <span>حاضر (ثابت)</span>
+                    </div>
                   </div>
                 </div>
 
@@ -336,9 +317,9 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
 
                   <div className="bg-teal-50/70 p-2.5 rounded-xl border border-teal-200 flex items-center justify-between text-teal-900">
                     <span className="font-semibold flex items-center gap-1 text-slate-600">
-                      <History size={13} className="text-amber-600" /> عدد المحاولات:
+                      <History size={13} className="text-amber-600" /> إجمالي المحاولات:
                     </span>
-                    <span className="font-black text-xs text-teal-800">{student.attempts_count} محاولات مسجلة</span>
+                    <span className="font-black text-xs text-teal-800">{student.attempts_count} محاولات</span>
                   </div>
                 </div>
               </div>
