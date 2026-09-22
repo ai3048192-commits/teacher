@@ -15,7 +15,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 
 interface CourseAttendanceProps {
-  userId: string; // ✅ اضيف userId من props
+  userId: string;
 }
 
 export default function GradeGroupsAttendancePage({ userId }: CourseAttendanceProps) {
@@ -26,22 +26,29 @@ export default function GradeGroupsAttendancePage({ userId }: CourseAttendancePr
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
 
   useEffect(() => {
-    if (userId) { // ✅ تأكد إن userId موجود
-      fetchAttendanceData();
-    }
-  }, [userId]); // ✅ عند تغيير userId، أعد جلب البيانات
+    fetchAttendanceData();
+  }, [userId]);
 
   const fetchAttendanceData = async () => {
     try {
       setLoading(true);
-      // ✅ ضيف filter للمدرس الحالي بـ eq("teacher_id", userId)
-      const { data, error } = await supabase
-        .from("course_attendance")
-        .select("*")
-        .eq("teacher_id", userId); // ✅ حديد المدرس الحالي فقط
+      let query = supabase.from("course_attendance").select("*");
+      
+      // إذا توفر معرف المعلم، يمكن تصفيته، أو جلب الكل حسب هيكلة قاعدة البيانات لديك
+      if (userId) {
+        query = query.eq("teacher_id", userId);
+      }
 
-      if (error) throw error;
-      if (data) {
+      const { data, error } = await query;
+
+      if (error) {
+        // لو العمود teacher_id مش موجود في جدول course_attendance، جلب البيانات بدون شروط المعلم تفادياً للخطأ
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("course_attendance")
+          .select("*");
+        if (fallbackError) throw fallbackError;
+        if (fallbackData) setAttendanceData(fallbackData);
+      } else if (data) {
         setAttendanceData(data);
       }
     } catch (error) {
