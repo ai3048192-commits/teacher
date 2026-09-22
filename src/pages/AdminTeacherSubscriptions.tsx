@@ -10,6 +10,9 @@ export default function CheckoutWithPackagesPage({ user, onSuccess }: { user: an
   const [fetchingPlan, setFetchingPlan] = useState(true);
   const [successMsg, setSuccessMsg] = useState("");
   const [isPendingReview, setIsPendingReview] = useState(false);
+  // الاشتراك المفعّل بيتعرض كرسالة بدل ما يستدعي onSuccess وقت التحميل.
+  // الاستدعاء وقت التحميل كان بيعمل reload في لفة مالهاش نهاية.
+  const [isActive, setIsActive] = useState(false);
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
@@ -26,6 +29,14 @@ export default function CheckoutWithPackagesPage({ user, onSuccess }: { user: an
   };
 
   useEffect(() => {
+    // الـ channel لازم يتعرّف هنا، مش جوه الدالة الـ async.
+    // الكود القديم كان بيرجّع الـ cleanup من جوه الدالة، فالـ effect نفسه
+    // مكانش بيرجّع حاجة، والـ channel مكانش بيتقفل أبداً. أول ما الصفحة
+    // تتفتح تاني، Supabase بيرجّع نفس الـ channel القديم المشترك بالفعل،
+    // و .on() عليه بيرمي: cannot add postgres_changes callbacks after subscribe()
+    let subscriptionChannel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+
     const fetchPackageAndSession = async () => {
       try {
         setFetchingPlan(true);
@@ -80,31 +91,35 @@ export default function CheckoutWithPackagesPage({ user, onSuccess }: { user: an
 
         if (!error && data) {
           if (data.status === "active") {
-            if (onSuccess) onSuccess();
+            setIsActive(true);
           } else if (data.status === "pending") {
             setIsPendingReview(true);
           }
         }
 
-        const subscriptionChannel = supabase
-          .channel("public:teacher_subscriptions")
+        if (cancelled || !currentUserId) return;
+
+        // اسم فريد لكل معلم + فلتر، بدل ما يسمع لكل تغييرات الجدول
+        subscriptionChannel = supabase
+          .channel(`teacher_subscription_page_${currentUserId}`)
           .on(
             "postgres_changes",
-            { event: "UPDATE", schema: "public", table: "teacher_subscriptions" },
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "teacher_subscriptions",
+              filter: `teacher_id=eq.${currentUserId}`,
+            },
             (payload: any) => {
-              if (
-                (payload.new.teacher_id === currentUserId || payload.new.teacher_email === currentUserEmail) &&
-                payload.new.status === "active"
-              ) {
+              if (payload.new?.status === "active") {
+                setIsPendingReview(false);
+                setIsActive(true);
+                // هنا بس بنستدعي onSuccess: لما الحالة تتغير فعلاً من pending لـ active
                 if (onSuccess) onSuccess();
               }
             }
           )
           .subscribe();
-
-        return () => {
-          supabase.removeChannel(subscriptionChannel);
-        };
       } catch (err) {
         console.error("Error fetching data:", err);
       } finally {
@@ -113,6 +128,11 @@ export default function CheckoutWithPackagesPage({ user, onSuccess }: { user: an
     };
 
     fetchPackageAndSession();
+
+    return () => {
+      cancelled = true;
+      if (subscriptionChannel) void supabase.removeChannel(subscriptionChannel);
+    };
   }, [user]);
 
   const handleFileUpload = async (e: React.FormEvent) => {
@@ -197,7 +217,7 @@ export default function CheckoutWithPackagesPage({ user, onSuccess }: { user: an
   }
 
   return (
-    <div className="max-w-9xl mx-auto  border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6" dir="rtl">
+    <div className="max-w-7xl mx-auto  border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6" dir="rtl">
       {/* رأس الصفحة */}
       <div className="text-center space-y-2 border-b border-slate-100 pb-6">
         <span className="px-3.5 py-1.5 bg-purple-50 text-purple-700 text-xs font-black rounded-full inline-flex items-center gap-1.5 border border-purple-100 shadow-2xs">
@@ -211,6 +231,15 @@ export default function CheckoutWithPackagesPage({ user, onSuccess }: { user: an
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3 shadow-2xs">
           <CheckCircle2 size={22} className="text-emerald-600 shrink-0" />
           <span className="text-xs font-bold leading-relaxed">{successMsg}</span>
+        </div>
+      )}
+
+      {isActive && !successMsg && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3 shadow-2xs">
+          <CheckCircle2 size={22} className="text-emerald-600 shrink-0" />
+          <span className="text-xs font-bold leading-relaxed">
+            اشتراكك مفعّل حالياً. يمكنك تجديده من هنا قبل انتهاء المدة.
+          </span>
         </div>
       )}
 
