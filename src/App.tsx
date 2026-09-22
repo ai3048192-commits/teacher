@@ -21,31 +21,41 @@ import Profile from "./pages/Profile";
 import "./index.css";
 
 /* ================================================================== */
-/*  إعدادات                                                            */
+/*  إعدادات                                                             */
 /* ================================================================== */
 
-// صفحة تسجيل الدخول. لو صفحة الدخول جوه نفس التطبيق، سيبها "/login".
 const LOGIN_URL = import.meta.env.VITE_LOGIN_URL ?? "/login";
 const STUDENT_HOME = import.meta.env.VITE_STUDENT_HOME ?? "/student";
 
 type Access = "loading" | "guest" | "not-teacher" | "teacher";
 
 /* ================================================================== */
-/*  شاشات الحالة                                                       */
+/*  شاشات الحالة (بتصميم احترافي مميز)                                 */
 /* ================================================================== */
 
 function FullScreen({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen items-center justify-center p-4 text-slate-700" dir="rtl">
-      <div className="max-w-md space-y-4 rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
-        {children}
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 p-4 text-slate-700 sm:p-6" dir="rtl">
+      {/* دوائر إضاءة خافتة في الخلفية */}
+      <div className="absolute -top-40 left-0 h-96 w-96 rounded-full bg-blue-400/20 mix-blend-multiply blur-[100px]"></div>
+      <div className="absolute -bottom-40 right-0 h-96 w-96 rounded-full bg-indigo-400/20 mix-blend-multiply blur-[100px]"></div>
+
+      {/* الكارت الأساسي بتصميم زجاجي حديث */}
+      <div className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/60 bg-white/80 p-8 pt-10 text-center shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_16px_60px_-15px_rgba(0,0,0,0.15)] sm:p-10">
+        
+        {/* شريط متدرج ديكوري أعلى الكارت */}
+        <div className="absolute left-0 top-0 h-1.5 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+
+        <div className="flex flex-col items-center justify-center space-y-5">
+          {children}
+        </div>
       </div>
     </div>
   );
 }
 
 /* ================================================================== */
-/*  التطبيق                                                            */
+/*  التطبيق                                                             */
 /* ================================================================== */
 
 export default function App() {
@@ -53,7 +63,6 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [access, setAccess] = useState<Access>("loading");
 
-  // هوية المستخدم بتيجي من الجلسة نفسها، مش من الـ URL.
   const userId = session?.user?.id ?? "";
 
   const resolveAccess = useCallback(async (current: Session | null) => {
@@ -64,7 +73,6 @@ export default function App() {
     }
     setSession(current);
 
-    // نوع الحساب محسوم من قاعدة البيانات، والمستخدم مش بيقدر يغيّره
     const { data } = await supabase.from("profiles").select("role").eq("id", current.user.id).maybeSingle();
     const role = data?.role ?? current.user.user_metadata?.role;
     setAccess(role === "teacher" ? "teacher" : "not-teacher");
@@ -77,7 +85,6 @@ export default function App() {
       if (active) void resolveAccess(data.session);
     });
 
-    // تسجيل خروج أو انتهاء الجلسة بيتعامل معاه فوراً بدل ما الصفحة تفضل فاضية
     const { data: sub } = supabase.auth.onAuthStateChange((_event, current) => {
       if (active) void resolveAccess(current);
     });
@@ -105,18 +112,24 @@ export default function App() {
   }
 
   if (access === "guest") {
-    // الكود القديم كان بيعرض الداشبورد كامل حتى من غير تسجيل دخول،
-    // فكانت كل الصفحات بتطلع فاضية من غير ما حد يفهم السبب.
     return (
       <FullScreen>
-        <AlertTriangle size={36} className="mx-auto text-amber-500" />
-        <h1 className="text-lg font-black text-slate-900">يجب تسجيل الدخول للدخول على لوحة المعلم</h1>
-        <p className="text-sm text-slate-500">انتهت جلستك أو لم تسجّل الدخول بعد.</p>
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-100/50 shadow-inner">
+          <AlertTriangle size={38} className="text-amber-500" strokeWidth={1.5} />
+        </div>
+        
+        <div className="space-y-2">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">مرحباً بك!</h1>
+          <p className="text-sm font-medium leading-relaxed text-slate-500">
+            يجب تسجيل الدخول أولاً لتتمكن من الوصول إلى لوحة تحكم المعلم.
+          </p>
+        </div>
+
         <a
           href={LOGIN_URL}
-          className="inline-block rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-md transition-colors hover:bg-blue-700"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-0.5 hover:shadow-blue-500/40 active:translate-y-0"
         >
-          الذهاب لصفحة تسجيل الدخول
+          تسجيل الدخول الآن
         </a>
       </FullScreen>
     );
@@ -125,22 +138,30 @@ export default function App() {
   if (access === "not-teacher") {
     return (
       <FullScreen>
-        <AlertTriangle size={36} className="mx-auto text-rose-500" />
-        <h1 className="text-lg font-black text-slate-900">هذه اللوحة مخصصة للمعلمين</h1>
-        <p className="text-sm text-slate-500">حسابك مسجّل كطالب، ولا يمكنه الوصول إلى بيانات المعلمين.</p>
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-rose-100/50 shadow-inner">
+          <AlertTriangle size={38} className="text-rose-500" strokeWidth={1.5} />
+        </div>
+
+        <div className="space-y-2">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">عذراً، لا تملك صلاحية</h1>
+          <p className="text-sm font-medium leading-relaxed text-slate-500">
+            هذه اللوحة مخصصة للمعلمين فقط. حسابك الحالي مسجل كطالب.
+          </p>
+        </div>
+
+        <div className="mt-4 flex w-full flex-col gap-3">
           <a
             href={STUDENT_HOME}
-            className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-0.5 hover:shadow-blue-500/40 active:translate-y-0"
           >
             الذهاب للوحة الطالب
           </a>
           <button
             type="button"
             onClick={handleSignOut}
-            className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-6 py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-100 hover:text-slate-900"
           >
-            <LogOut size={15} />
+            <LogOut size={18} />
             تسجيل الخروج
           </button>
         </div>
@@ -160,8 +181,6 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="mx-auto max-w-[1600px]">
             <TeacherDashboardLayout user={session?.user ?? null}>
-              {/* userId بيتبعت للصفحات اللي بتستقبله بس. الباقي بيقرا الجلسة
-                  بنفسه ويعتمد على RLS، وبعت prop مش موجود كان بيطلع خطأ. */}
               <Routes>
                 <Route path="/" element={<HomePage userId={userId} />} />
                 <Route path="/teacher-courses" element={<TeacherCourse />} />
@@ -176,7 +195,6 @@ export default function App() {
                 <Route path="/teacher-live" element={<TeacherLive />} />
                 <Route path="/teacher-student-subscriptions" element={<TeacherStudentSubscriptions />} />
                 <Route path="/teacher-profile" element={<Profile userId={userId} />} />
-                {/* أي مسار غلط يرجّع للصفحة الرئيسية بدل صفحة بيضا */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </TeacherDashboardLayout>
