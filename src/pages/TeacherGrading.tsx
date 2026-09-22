@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Users,
   Search,
-  Award,
   Clock,
   BookOpen,
   Layers,
@@ -25,7 +24,7 @@ export default function StudentsSubmissionsPage() {
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchLatestSubmissions();
+    fetchAllSubmissions();
 
     const channel = supabase
       .channel('public:student_submissions')
@@ -33,7 +32,7 @@ export default function StudentsSubmissionsPage() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'student_submissions' },
         () => {
-          fetchLatestSubmissions();
+          fetchAllSubmissions();
         }
       )
       .subscribe();
@@ -43,7 +42,7 @@ export default function StudentsSubmissionsPage() {
     };
   }, []);
 
-  const fetchLatestSubmissions = async () => {
+  const fetchAllSubmissions = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -54,14 +53,7 @@ export default function StudentsSubmissionsPage() {
       if (error) throw error;
 
       if (data) {
-        const latestMap = new Map();
-        data.forEach((sub) => {
-          const key = `${sub.student_id}_${sub.quiz_id}`;
-          if (!latestMap.has(key)) {
-            latestMap.set(key, sub);
-          }
-        });
-        setSubmissions(Array.from(latestMap.values()));
+        setSubmissions(data); // عرض كل المحاولات والتسليمات بدون استثناء
       }
     } catch (error: any) {
       console.error("خطأ في جلب درجات الطلاب:", error.message);
@@ -88,13 +80,13 @@ export default function StudentsSubmissionsPage() {
         <div className="relative z-10 space-y-3">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold border border-white/10 text-indigo-200">
             <Sparkles size={14} className="text-amber-400" />
-            <span>لوحة تقييم الطلاب الذكية -  منصة Z E D</span>
+            <span>لوحة تقييم الطلاب الذكية - منصة Z E D</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            درجات واختبارات الطلاب الإحترافية
+            سجل اختبارات ومحاولات الطلاب بالكامل
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-            متابعة دقيقة وفورية لأداء الطلاب، استعراض الإجابات المفصلة للاختبارات والملفات المرفقة بتصميم أنيق ومبسط.
+            متابعة دقيقة لكل محاولات الاختبارات السابقة والجديدة للطلاب، مع استعراض التفاصيل والإجابات الكاملة.
           </p>
         </div>
       </div>
@@ -114,11 +106,11 @@ export default function StudentsSubmissionsPage() {
         
         <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
           <div className="text-xs font-medium text-slate-600 bg-slate-100/80 px-3 py-2 rounded-xl border border-slate-200/60">
-            النتائج: <span className="text-indigo-600 font-bold">{filteredSubmissions.length}</span> طالب
+            إجمالي المحاولات: <span className="text-indigo-600 font-bold">{filteredSubmissions.length}</span> محاولة
           </div>
 
           <button
-            onClick={fetchLatestSubmissions}
+            onClick={fetchAllSubmissions}
             className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200/60 flex items-center gap-1.5 active:scale-95 cursor-pointer"
           >
             <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
@@ -131,7 +123,7 @@ export default function StudentsSubmissionsPage() {
       {loading ? (
         <div className="py-24 text-center space-y-3">
           <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs font-medium text-slate-500">جاري جلب أحدث محاولات الطلاب...</p>
+          <p className="text-xs font-medium text-slate-500">جاري جلب جميع سجلات اختبارات الطلاب...</p>
         </div>
       ) : filteredSubmissions.length === 0 ? (
         <div className="py-16 text-center space-y-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
@@ -139,7 +131,6 @@ export default function StudentsSubmissionsPage() {
           <p className="text-xs sm:text-sm font-semibold text-slate-600">لا توجد تسليمات مطابقة لبحثك حالياً.</p>
         </div>
       ) : (
-        /* شبكة الكروت بتصميم فاخر وأنيق جداً ومتجاوب مع الموبايل */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {filteredSubmissions.map((item) => {
             const isExpanded = expandedSubmissionId === item.id;
@@ -147,11 +138,7 @@ export default function StudentsSubmissionsPage() {
             const essayAnswers = item.student_answers?.essay_answers || {};
             const uploadedFiles = item.student_answers?.uploaded_files || {};
             const isFailed = item.status === 'راسب';
-            
-            // حساب النسبة المئوية للدرجة لتلوين الـ Badge
-            const scoreNum = Number(item.score) || 0;
             const maxScoreNum = Number(item.max_score) || 100;
-            const percentage = Math.round((scoreNum / maxScoreNum) * 100);
 
             return (
               <div
@@ -160,7 +147,7 @@ export default function StudentsSubmissionsPage() {
               >
                 <div className="space-y-4">
                   
-                  {/* الهيدر الخاص بالكرت: اسم الطالب + حالة النجاح + الدرجة البارزة */}
+                  {/* الهيدر الخاص بالكرت */}
                   <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
                     <div className="flex items-center gap-3.5">
                       <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-50 to-blue-50 text-indigo-600 flex items-center justify-center font-black text-sm shrink-0 border border-indigo-100 shadow-xs">
@@ -173,12 +160,12 @@ export default function StudentsSubmissionsPage() {
                             {isFailed ? <XCircle size={11} /> : <CheckCircle2 size={11} />}
                             {item.status || "ناجح"}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">(آخر محاولة)</span>
+                          <span className="text-[10px] text-slate-400 font-medium">(محاولة رقم: {item.id})</span>
                         </div>
                       </div>
                     </div>
                     
-                    {/* شارة الدرجة النهائية بتصميم عصري */}
+                    {/* شارة الدرجة النهائية */}
                     <div className="text-left bg-gradient-to-br from-indigo-900 to-slate-900 text-white px-3.5 py-2 rounded-2xl shadow-sm shrink-0 border border-slate-800">
                       <span className="text-[9px] block text-indigo-300 font-semibold uppercase tracking-wider">الدرجة الكلية</span>
                       <div className="flex items-baseline gap-1">
@@ -188,14 +175,14 @@ export default function StudentsSubmissionsPage() {
                     </div>
                   </div>
 
-                  {/* تفاصيل الكورس والتخصص (داخل بوردرات منسقة) */}
+                  {/* تفاصيل الكورس والتخصص */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/60 flex items-center gap-2.5">
                       <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                         <BookOpen size={14} />
                       </div>
                       <div className="truncate">
-                        <span className="text-[10px] text-slate-400 block font-medium">الكورس</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">الكورس / الاختبار (ID: {item.quiz_id})</span>
                         <span className="font-bold text-slate-800 truncate block">{item.course_name}</span>
                       </div>
                     </div>
@@ -227,8 +214,6 @@ export default function StudentsSubmissionsPage() {
 
                       {isExpanded && (
                         <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5 text-xs animate-fadeIn">
-                          
-                          {/* أسئلة الاختيار من متعدد */}
                           {Object.keys(mcqAnswers).length > 0 && (
                             <div className="space-y-2">
                               <span className="font-extrabold text-blue-700 block border-b border-blue-100 pb-1">أسئلة الاختيار من متعدد:</span>
@@ -243,7 +228,6 @@ export default function StudentsSubmissionsPage() {
                             </div>
                           )}
 
-                          {/* الأسئلة المقالية */}
                           {Object.keys(essayAnswers).length > 0 && (
                             <div className="space-y-2 pt-1">
                               <span className="font-extrabold text-indigo-700 block border-b border-indigo-100 pb-1">الأسئلة المقالية:</span>
@@ -258,7 +242,6 @@ export default function StudentsSubmissionsPage() {
                             </div>
                           )}
 
-                          {/* الملفات الخارجية المرفقة */}
                           {Object.keys(uploadedFiles).length > 0 && (
                             <div className="space-y-2 pt-1">
                               <span className="font-extrabold text-emerald-700 block border-b border-emerald-100 pb-1">الملفات المرفقة:</span>
@@ -289,7 +272,7 @@ export default function StudentsSubmissionsPage() {
 
                 </div>
 
-                {/* وقت التسليم في أسفل الكرت */}
+                {/* وقت التسليم */}
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-semibold">
                   <span className="flex items-center gap-1.5 text-slate-400">
                     <Clock size={13} className="text-amber-500" />
