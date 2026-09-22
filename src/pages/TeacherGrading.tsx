@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Users,
   Search,
+  Award,
   Clock,
   BookOpen,
   Layers,
@@ -14,9 +15,7 @@ import {
   XCircle,
   Eye,
   Sparkles,
-  Edit3,
-  Save,
-  X
+  Trash2,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -25,13 +24,6 @@ export default function StudentsSubmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<number | null>(null);
-
-  // حالات تخص نافذة التصحيح والتعديل
-  const [editingSubmission, setEditingSubmission] = useState<any | null>(null);
-  const [newScore, setNewScore] = useState<number | string>("");
-  const [newStatus, setNewStatus] = useState<string>("ناجح");
-  const [teacherNotes, setTeacherNotes] = useState<string>("");
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchLatestSubmissions();
@@ -79,6 +71,26 @@ export default function StudentsSubmissionsPage() {
     }
   };
 
+  // دالة حذف تسليم الطالب
+  const handleDeleteSubmission = async (id: number) => {
+    if (!window.confirm("هل أنت متأكد من حذف هذا التسليم نهائياً؟")) return;
+
+    try {
+      const { error } = await supabase
+        .from("student_submissions")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      // تحديث الحالة المحلية لحذف الكرت فورا من الواجهة
+      setSubmissions((prev) => prev.filter((item) => item.id !== id));
+    } catch (error: any) {
+      console.error("خطأ أثناء حذف التسليم:", error.message);
+      alert("حدث خطأ أثناء محاولة الحذف.");
+    }
+  };
+
   const filteredSubmissions = submissions.filter((item) =>
     item.student_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.course_name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -86,50 +98,6 @@ export default function StudentsSubmissionsPage() {
 
   const toggleExpand = (id: number) => {
     setExpandedSubmissionId(expandedSubmissionId === id ? null : id);
-  };
-
-  // فتح نافذة التصحيح وتعبئة البيانات الحالية
-  const handleOpenEditModal = (item: any) => {
-    setEditingSubmission(item);
-    setNewScore(item.score ?? 0);
-    setNewStatus(item.status ?? "ناجح");
-    setTeacherNotes(item.teacher_notes ?? "");
-  };
-
-  // حفظ التعديلات والدرجة المصححة في قاعدة البيانات
-  const handleSaveCorrection = async () => {
-    if (!editingSubmission) return;
-
-    try {
-      setSaving(true);
-      const { error } = await supabase
-        .from("student_submissions")
-        .update({
-          score: Number(newScore),
-          status: newStatus,
-          teacher_notes: teacherNotes,
-        })
-        .eq("id", editingSubmission.id);
-
-      if (error) throw error;
-
-      // تحديث الحالة المحلية مباشرة
-      setSubmissions(prev =>
-        prev.map(sub =>
-          sub.id === editingSubmission.id
-            ? { ...sub, score: Number(newScore), status: newStatus, teacher_notes: teacherNotes }
-            : sub
-        )
-      );
-
-      setEditingSubmission(null);
-      alert("تم حفظ التصحيح وتحديث درجة الطالب بنجاح!");
-    } catch (err: any) {
-      console.error("خطأ أثناء حفظ التعديل:", err.message);
-      alert("حدث خطأ أثناء حفظ التعديل.");
-    } finally {
-      setSaving(false);
-    }
   };
 
   return (
@@ -141,13 +109,13 @@ export default function StudentsSubmissionsPage() {
         <div className="relative z-10 space-y-3">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold border border-white/10 text-indigo-200">
             <Sparkles size={14} className="text-amber-400" />
-            <span>لوحة تقييم الطلاب الذكية - منصة Z E D</span>
+            <span>لوحة تقييم الطلاب الذكية -  منصة Z E D</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            درجات واختبارات الطلاب الإحترافية والتصحيح
+            درجات واختبارات الطلاب الإحترافية
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-            متابعة دقيقة وفورية لأداء الطلاب، استعراض الإجابات المفصلة، وإمكانية تصحيح وتعديل درجات الاختبارات بسهولة.
+            متابعة دقيقة وفورية لأداء الطلاب، استعراض الإجابات المفصلة للاختبارات والملفات المرفقة بتصميم أنيق ومبسط.
           </p>
         </div>
       </div>
@@ -192,6 +160,7 @@ export default function StudentsSubmissionsPage() {
           <p className="text-xs sm:text-sm font-semibold text-slate-600">لا توجد تسليمات مطابقة لبحثك حالياً.</p>
         </div>
       ) : (
+        /* شبكة الكروت بتصميم فاخر وأنيق جداً ومتجاوب مع الموبايل */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {filteredSubmissions.map((item) => {
             const isExpanded = expandedSubmissionId === item.id;
@@ -210,7 +179,7 @@ export default function StudentsSubmissionsPage() {
               >
                 <div className="space-y-4">
                   
-                  {/* الهيدر الخاص بالكرت */}
+                  {/* الهيدر الخاص بالكرت: اسم الطالب + حالة النجاح + الدرجة البارزة + زر الحذف */}
                   <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
                     <div className="flex items-center gap-3.5">
                       <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-50 to-blue-50 text-indigo-600 flex items-center justify-center font-black text-sm shrink-0 border border-indigo-100 shadow-xs">
@@ -223,12 +192,13 @@ export default function StudentsSubmissionsPage() {
                             {isFailed ? <XCircle size={11} /> : <CheckCircle2 size={11} />}
                             {item.status || "ناجح"}
                           </span>
+                          <span className="text-[10px] text-slate-400 font-medium">(آخر محاولة)</span>
                         </div>
                       </div>
                     </div>
                     
-                    {/* شارة الدرجة النهائية + زر التصحيح */}
                     <div className="flex items-center gap-2">
+                      {/* شارة الدرجة النهائية */}
                       <div className="text-left bg-gradient-to-br from-indigo-900 to-slate-900 text-white px-3.5 py-2 rounded-2xl shadow-sm shrink-0 border border-slate-800">
                         <span className="text-[9px] block text-indigo-300 font-semibold uppercase tracking-wider">الدرجة الكلية</span>
                         <div className="flex items-baseline gap-1">
@@ -237,12 +207,13 @@ export default function StudentsSubmissionsPage() {
                         </div>
                       </div>
 
+                      {/* زر الحذف */}
                       <button
-                        onClick={() => handleOpenEditModal(item)}
-                        className="p-2.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 rounded-2xl transition-all border border-indigo-200 shadow-2xs cursor-pointer"
-                        title="تصحيح وتعديل الدرجة"
+                        onClick={() => handleDeleteSubmission(item.id)}
+                        className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-2xl transition-all border border-rose-200/60 cursor-pointer"
+                        title="حذف التسليم"
                       >
-                        <Edit3 size={16} />
+                        <Trash2 size={17} />
                       </button>
                     </div>
                   </div>
@@ -270,14 +241,6 @@ export default function StudentsSubmissionsPage() {
                     </div>
                   </div>
 
-                  {/* ملاحظات المعلم إن وجدت */}
-                  {item.teacher_notes && (
-                    <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl text-xs space-y-1">
-                      <span className="font-bold text-amber-800 block">ملاحظات المعلم:</span>
-                      <p className="text-slate-700">{item.teacher_notes}</p>
-                    </div>
-                  )}
-
                   {/* قسم استعراض إجابات الطالب القابلة للطي */}
                   {item.student_answers && (
                     <div className="space-y-2 pt-1">
@@ -295,6 +258,7 @@ export default function StudentsSubmissionsPage() {
                       {isExpanded && (
                         <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5 text-xs animate-fadeIn">
                           
+                          {/* أسئلة الاختيار من متعدد */}
                           {Object.keys(mcqAnswers).length > 0 && (
                             <div className="space-y-2">
                               <span className="font-extrabold text-blue-700 block border-b border-blue-100 pb-1">أسئلة الاختيار من متعدد:</span>
@@ -309,6 +273,7 @@ export default function StudentsSubmissionsPage() {
                             </div>
                           )}
 
+                          {/* الأسئلة المقالية */}
                           {Object.keys(essayAnswers).length > 0 && (
                             <div className="space-y-2 pt-1">
                               <span className="font-extrabold text-indigo-700 block border-b border-indigo-100 pb-1">الأسئلة المقالية:</span>
@@ -323,6 +288,7 @@ export default function StudentsSubmissionsPage() {
                             </div>
                           )}
 
+                          {/* الملفات الخارجية المرفقة */}
                           {Object.keys(uploadedFiles).length > 0 && (
                             <div className="space-y-2 pt-1">
                               <span className="font-extrabold text-emerald-700 block border-b border-emerald-100 pb-1">الملفات المرفقة:</span>
@@ -342,6 +308,10 @@ export default function StudentsSubmissionsPage() {
                               ))}
                             </div>
                           )}
+
+                          {Object.keys(mcqAnswers).length === 0 && Object.keys(essayAnswers).length === 0 && Object.keys(uploadedFiles).length === 0 && (
+                            <p className="text-slate-500 text-center py-2">لا توجد تفاصيل إجابات مسجلة لهذا التسليم.</p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -349,6 +319,7 @@ export default function StudentsSubmissionsPage() {
 
                 </div>
 
+                {/* وقت التسليم في أسفل الكرت */}
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-semibold">
                   <span className="flex items-center gap-1.5 text-slate-400">
                     <Clock size={13} className="text-amber-500" />
@@ -361,82 +332,6 @@ export default function StudentsSubmissionsPage() {
           })}
         </div>
       )}
-
-      {/* نافذة (Modal) لتصحيح وتعديل درجة الطالب */}
-      {editingSubmission && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl border border-slate-200 animate-fadeIn" dir="rtl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-lg font-black text-slate-900">تصحيح درجة الطالب</h3>
-                <p className="text-xs text-slate-500 mt-0.5">الطالب: {editingSubmission.student_name}</p>
-              </div>
-              <button
-                onClick={() => setEditingSubmission(null)}
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-xl bg-slate-100 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-4 text-xs font-semibold">
-              <div className="space-y-1.5">
-                <label className="text-slate-700 block">الدرجة الجديدة:</label>
-                <input
-                  type="number"
-                  value={newScore}
-                  onChange={(e) => setNewScore(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-slate-700 block">حالة التقييم:</label>
-                <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:border-indigo-600"
-                >
-                  <option value="ناجح">ناجح</option>
-                  <option value="راسب">راسب</option>
-                  <option value="ممتاز">ممتاز</option>
-                  <option value="يحتاج تحسين">يحتاج تحسين</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-slate-700 block">ملاحظات المعلم (تظهر للطالب):</label>
-                <textarea
-                  rows={3}
-                  value={teacherNotes}
-                  onChange={(e) => setTeacherNotes(e.target.value)}
-                  placeholder="اكتب ملاحظاتك على إجابات الطالب..."
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-indigo-600 resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={handleSaveCorrection}
-                disabled={saving}
-                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <Save size={16} />
-                <span>{saving ? "جاري الحفظ..." : "حفظ التعديل"}</span>
-              </button>
-
-              <button
-                onClick={() => setEditingSubmission(null)}
-                className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition-all cursor-pointer"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
