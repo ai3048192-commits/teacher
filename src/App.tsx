@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
-import { AlertTriangle, Loader2, LogOut } from "lucide-react";
+import { AlertTriangle, Loader2, LogOut, Ban } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import TeacherDashboardLayout from "./components/TeacherDashboardLayout";
@@ -27,7 +27,7 @@ import "./index.css";
 const LOGIN_URL = import.meta.env.VITE_LOGIN_URL ?? "/login";
 const STUDENT_HOME = import.meta.env.VITE_STUDENT_HOME ?? "/student";
 
-type Access = "loading" | "guest" | "not-teacher" | "teacher";
+type Access = "loading" | "guest" | "not-teacher" | "disabled" | "teacher";
 
 /* ================================================================== */
 /*  شاشات الحالة (بتصميم احترافي مميز)                                 */
@@ -42,7 +42,7 @@ function FullScreen({ children }: { children: React.ReactNode }) {
 
       {/* الكارت الأساسي بتصميم زجاجي حديث */}
       <div className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/60 bg-white/80 p-8 pt-10 text-center shadow-[0_8px_40px_-12px_rgba(0,0,0,0.1)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_16px_60px_-15px_rgba(0,0,0,0.15)] sm:p-10">
-        
+
         {/* شريط متدرج ديكوري أعلى الكارت */}
         <div className="absolute left-0 top-0 h-1.5 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
 
@@ -75,7 +75,25 @@ export default function App() {
 
     const { data } = await supabase.from("profiles").select("role").eq("id", current.user.id).maybeSingle();
     const role = data?.role ?? current.user.user_metadata?.role;
-    setAccess(role === "teacher" ? "teacher" : "not-teacher");
+
+    if (role !== "teacher") {
+      setAccess("not-teacher");
+      return;
+    }
+
+    // التحقق من إن حساب المدرس مش معطّل من الإدارة
+    const { data: tp } = await supabase
+      .from("teachers_profile")
+      .select("active")
+      .eq("user_id", current.user.id)
+      .maybeSingle();
+
+    if (tp && tp.active === false) {
+      setAccess("disabled");
+      return;
+    }
+
+    setAccess("teacher");
   }, []);
 
   useEffect(() => {
@@ -117,7 +135,7 @@ export default function App() {
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-100/50 shadow-inner">
           <AlertTriangle size={38} className="text-amber-500" strokeWidth={1.5} />
         </div>
-        
+
         <div className="space-y-2">
           <h1 className="text-2xl font-black tracking-tight text-slate-900">مرحباً بك!</h1>
           <p className="text-sm font-medium leading-relaxed text-slate-500">
@@ -165,6 +183,33 @@ export default function App() {
             تسجيل الخروج
           </button>
         </div>
+      </FullScreen>
+    );
+  }
+
+  if (access === "disabled") {
+    return (
+      <FullScreen>
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-rose-100/50 shadow-inner">
+          <Ban size={38} className="text-rose-500" strokeWidth={1.5} />
+        </div>
+
+        <div className="space-y-2">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">حسابك معطّل</h1>
+          <p className="text-sm font-medium leading-relaxed text-slate-500">
+            تم إيقاف حسابك كمعلم من قبل الإدارة. بياناتك محفوظة، وتقدر ترجع تشتغل بعد التفعيل.
+            برجاء التواصل مع الإدارة.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-6 py-3.5 text-sm font-bold text-slate-600 transition-all hover:bg-slate-100 hover:text-slate-900"
+        >
+          <LogOut size={18} />
+          تسجيل الخروج
+        </button>
       </FullScreen>
     );
   }
